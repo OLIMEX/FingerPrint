@@ -9,24 +9,22 @@ __email__ = "support@olimex.com"
 import Communication
 import StatusCodes
 import Errors
+
 import sys
-import numpy
 from PIL import Image
 
 
-
 class Finger:
-
-    def __init__(self, password=0x00000000, address=0xFFFFFFFF):
+    def __init__(self, port, baud=57600, password=0x00000000, address=0xffffffff):
 
         self.__password = password
         self.__address = address
-        # self.packet_size = None
-        self.packet_size = 128
+        self.__packet_size = None
 
         # Open serial port
         try:
-            self.com = Communication.Communication(port="/dev/ttyACM0", device_address=self.__address)
+            print(baud)
+            self.com = Communication.Communication(port=port, device_address=self.__address, baud_rate=baud)
         except IOError as err:
             print(err)
             sys.exit(1)
@@ -34,12 +32,7 @@ class Finger:
 
 
 
-    @staticmethod
-    def __u32_to_list(password):
-        return [(password >> 24 & 0xFF),
-                (password >> 16 & 0xFF),
-                (password >> 8 & 0xFF),
-                (password >> 0 & 0xFF)]
+
 
     def verify_password(self):
         """
@@ -47,7 +40,6 @@ class Finger:
 
         :raise Errors.ReadError: If there is problem with communication
         """
-        sys.stderr.write("Password verification: ")
 
         # Form packet to send
         packet = [0x13] + self.__u32_to_list(self.__password)
@@ -356,14 +348,27 @@ class Finger:
                 image += data
 
             sys.stderr.write("OK\n")
-
             self.create_image(image)
-
 
         except Errors.Error as err:
             sys.stderr.write("Fail\n")
             sys.stderr.write(err.msg + "\n")
             sys.exit(1)
+
+
+    @staticmethod
+    def __u32_to_list(data):
+        """
+        Convert 4-byte integer to list,
+        Byte order is MSB first, LSB last.
+
+        :param data: 4-byte integer
+        :return: Converted list
+        """
+        return [(data >> 24 & 0xFF),
+                (data >> 16 & 0xFF),
+                (data >> 8 & 0xFF),
+                (data >> 0 & 0xFF)]
 
     @staticmethod
     def convert_image(data):

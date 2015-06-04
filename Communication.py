@@ -15,31 +15,91 @@ import Errors
 
 class Communication:
 
-    __start_code = 0xEF01
+    _start_code = 0xEF01
 
     def __init__(self, port, device_address, baud_rate=57600):
+
+        """
+        Class initialization
+
+        :param port: Communication port
+        :param device_address: Sensor address
+        :param baud_rate: Communication speed
+        """
+        # Create communication
         self.ser = serial.Serial(port, baudrate=baud_rate, timeout=1)
-        self.device_address = device_address
+
+        # Set current address. May be changed via set and get methods
+        self._device_address = device_address
+
+    @property.getter
+    def device_address(self):
+
+        """
+        Get current address
+
+        :return: Return current device address
+        """
+        return self._device_address
+
+    @property.setter
+    def device_address(self, new_address):
+
+        """
+        Set new address for the sensor
+
+        :raise: ValueError on invalid address
+        :param new_address: The new address
+        """
+
+        # Check new device address
+        if new_address > 0xffffffff or new_address < 0:
+            raise ValueError("Invalid device address")
+
+        # Set the new address
+        self._device_address = new_address
 
     def send_packet(self, packet, packet_type):
 
-        string = b""
-        buffer = [(self.__start_code >> 8 & 0xFF), self.__start_code & 0xFF]
-        buffer += [(self.device_address >> 24 & 0xFF),
-                   (self.device_address >> 16 & 0xFF),
-                   (self.device_address >> 8 & 0xFF),
-                   (self.device_address >> 0 & 0xFF)]
+        """
+        Send raw packet to sensor
 
+        :param packet: List with bytes to send
+        :param packet_type: Packet identification
+        :raise Errors.WriteError: If there is problem with sending
+        """
+
+        # Create empty byte string
+        string = b""
+
+        # Append start code
+        buffer = [(self._start_code >> 8 & 0xFF), self._start_code & 0xFF]
+
+        # Append address
+        buffer += [(self._device_address >> 24 & 0xFF),
+                   (self._device_address >> 16 & 0xFF),
+                   (self._device_address >> 8 & 0xFF),
+                   (self._device_address >> 0 & 0xFF)]
+
+        # Append packet type
         buffer += [packet_type.value]
+
+        # Append packet len
         packet_len = len(packet)
         buffer += [packet_len + 2 >> 8, packet_len + 2 & 0xFF]
 
+        # Add data packet
         buffer += packet
+
+        # Calculate checksum
         checksum = self.checksum(packet, packet_type)
         buffer += [(checksum >> 8 & 0xFF), checksum & 0xFF]
+
+        # Convert to byte array
         for i in buffer:
             string += struct.pack("B", i)
 
+        # Send packet
         if self.ser.write(string) != len(string):
             raise Errors.WriteError("Not all bytes send")
 
@@ -54,10 +114,10 @@ class Communication:
         if response[0] != 0xEF or response[1] != 0x01:
             raise Errors.ReadError("Message header doesn't match")
 
-        if response[2] != (self.device_address >> 24 & 0xFF) or \
-            response[3] != (self.device_address >> 16 & 0xFF) or \
-                response[4] != (self.device_address >> 8 & 0xFF) or \
-                response[5] != (self.device_address >> 0 & 0xFF):
+        if response[2] != (self._device_address >> 24 & 0xFF) or \
+            response[3] != (self._device_address >> 16 & 0xFF) or \
+                response[4] != (self._device_address >> 8 & 0xFF) or \
+                response[5] != (self._device_address >> 0 & 0xFF):
             raise Errors.ReadError("Device address doesn't match")
 
         if response[6] != packet_identification.value:
@@ -83,8 +143,4 @@ class Communication:
             summary += i
 
         return summary
-
-    def set_address(self, address):
-        self.device_address = address
-
 
