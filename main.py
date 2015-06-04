@@ -7,9 +7,10 @@ __maintainer__ = __author__
 __email__ = "support@olimex.com"
 
 import Finger
-import logging
 
+import logging
 import argparse
+import sys
 
 
 def parser_hex(value):
@@ -34,6 +35,14 @@ def main():
                         action="store",
                         required=True,
                         help="Communication port to use")
+    parser.add_argument("--baudrate",
+                        action="store",
+                        type=int,
+                        default=57600,
+                        help="Set communication speed. Default: 57600")
+    parser.add_argument("--settings",
+                        action="store_true",
+                        help="Read current sensor settings")
     parser.add_argument("-v", "--verbose",
                         action="store_true",
                         help="Enables verbose output")
@@ -45,11 +54,10 @@ def main():
     # Register common argument group
     sensor_group = parser.add_argument_group("Sensor",
                                              "Sensor configuration")
-    sensor_group.add_argument("--baudrate",
+    sensor_group.add_argument("--set-baud",
                               action="store",
                               type=int,
-                              default=57600,
-                              help="Set communication speed. Default: 57600")
+                              help="Set new speed for the sensor. Range 9600 to 115200")
     sensor_group.add_argument("--password",
                               action="store",
                               type=parser_hex,
@@ -75,50 +83,45 @@ def main():
     args = parser.parse_args()
 
     # Configure logging
+
     if args.verbose:
         logging.basicConfig(format="%(message)s", level=logging.DEBUG)
     else:
-        logging.basicConfig(format="%(message)s")
+        logging.basicConfig(format="%(message)s", level=logging.INFO)
 
     # Start communication with the sensor
-    sensor = Finger.Finger(args.port,
+    sensor = Finger.System(args.port,
                            baud=args.baudrate,
                            password=args.password,
                            address=args.address)
 
     # Check is there is someone
-    logging.info("Connecting with sensor")
-    sensor.verify_password()
+    logging.debug("Connecting with sensor")
+    logging.debug("----------------------")
+    if sensor.verify_password():
+        return 1
+    else:
+        logging.debug("Response: OK")
+
+    # Check if settings flag is set
+    if args.settings:
+        logging.debug("\nReading settings")
+        logging.debug("----------------")
+        sensor.read_system_params()
+        return 0
+
+    # Check for command
+    if args.set_baud:
+        logging.debug("\nSetting baudrate to %d" % args.set_baud)
+        logging.debug("------------------------------")
+        if sensor.set_baudrate(args.set_baud):
+            return 1
+        else:
+            logging.debug("Response: OK")
+
+
+
+    print(args)
 
 if __name__ == '__main__':
     main()
-
-
-# __delay = 3
-# a = Finger.Finger()
-# a.verify_password()
-#
-#
-# sys.stderr.write("Place your finger on the sensor\n")
-# for i in range(__delay):
-#     sys.stderr.write("\rTaking image in %d" % (__delay-i))
-#     time.sleep(1)
-# sys.stderr.write("\n")
-# a.gen_image()
-# a.get_model()
-# sys.exit(0)
-#
-#
-#
-# a.image_2_tz(1)
-#
-# sys.stderr.write("Place your finger one more time the sensor\n")
-# for i in range(__delay):
-#     sys.stderr.write("\rTaking image in %d" % (__delay-i))
-#     time.sleep(1)
-# sys.stderr.write("\n")
-# a.gen_image()
-# a.image_2_tz(2)
-# a.register_model()
-# a.store_model(0)
-# a.load_model(0)

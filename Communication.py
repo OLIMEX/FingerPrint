@@ -11,6 +11,7 @@ import serial
 import struct
 
 import Errors
+import StatusCodes
 
 
 class Communication:
@@ -32,7 +33,7 @@ class Communication:
         # Set current address. May be changed via set and get methods
         self._device_address = device_address
 
-    @property.getter
+    @property
     def device_address(self):
 
         """
@@ -42,7 +43,7 @@ class Communication:
         """
         return self._device_address
 
-    @property.setter
+    @device_address.setter
     def device_address(self, new_address):
 
         """
@@ -82,7 +83,7 @@ class Communication:
                    (self._device_address >> 0 & 0xFF)]
 
         # Append packet type
-        buffer += [packet_type.value]
+        buffer += [packet_type]
 
         # Append packet len
         packet_len = len(packet)
@@ -105,42 +106,75 @@ class Communication:
 
     def read_packet(self, number_bytes, packet_identification):
 
-        response = self.ser.read(number_bytes)
-        checksum = 0
+        """
+        Read data comming from sensor
 
+        :param number_bytes: Number of bytes to read
+        :param packet_identification: Expected packet identification
+        :return: Return only the data packet
+        :raise Errors.ReadError: If there is something wrong with the communication
+        """
+
+        # Read bytes from serial port
+        response = self.ser.read(number_bytes)
+
+        # Check for empty input buffer
         if len(response) == 0:
             raise Errors.ReadError("Zero bytes read. Check your sensor connection")
 
+        # Check for magic header
         if response[0] != 0xEF or response[1] != 0x01:
             raise Errors.ReadError("Message header doesn't match")
 
+        # Check device address
         if response[2] != (self._device_address >> 24 & 0xFF) or \
             response[3] != (self._device_address >> 16 & 0xFF) or \
                 response[4] != (self._device_address >> 8 & 0xFF) or \
                 response[5] != (self._device_address >> 0 & 0xFF):
             raise Errors.ReadError("Device address doesn't match")
 
-        if response[6] != packet_identification.value:
+        # Check identification
+        if response[6] != packet_identification:
             raise Errors.ReadError("Packet identification doesn't match")
 
+        # Calculate checksum
         checksum = response[6]
         for i in response[7:-2]:
             checksum += i
         if (checksum & 0xFFFF) != (response[-2] << 8 | response[-1]):
             raise Errors.ReadError("Checksum doesn't match.")
 
+        # Return list with data
         ret = []
         for i in response[9:9 + (response[7] << 8 | response[8]) - 2]:
             ret.append(i)
         return ret
 
-    def checksum(self, packet, packet_type):
+    def transfer(self, packet, packet_len):
+        # Send the packet
+        self.send_packet(packet, StatusCodes.PacketType.Command.value)
 
+        # Read the response
+        return self.read_packet(packet_len, StatusCodes.PacketType.Ack.value)
+
+    @staticmethod
+    def checksum(packet, packet_type):
+
+        """
+        Calculate checksum of packet
+        :param packet: Data bytes
+        :param packet_type: Identification type
+        :return: Calculated checksum. Returns only the low 2 bytes
+        """
+
+        # Get packet len + 2 bytes for checksum
         packet_len = len(packet) + 2
-        summary = (packet_len >> 8) + (packet_len & 0xFF) + packet_type.value
 
+        # Sum all packet values
+        summary = (packet_len >> 8) + (packet_len & 0xFF) + packet_type
         for i in packet:
             summary += i
 
-        return summary
+        # Return value
+        return summary & 0xFFFF
 
