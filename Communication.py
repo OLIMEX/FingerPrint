@@ -9,6 +9,7 @@ __email__ = "support@olimex.com"
 
 import serial
 import struct
+import time
 
 import Errors
 import StatusCodes
@@ -151,6 +152,12 @@ class Communication:
         return ret
 
     def transfer(self, packet, packet_len):
+        # Before any transfer flush buffers
+        self.ser.flushInput()
+        self.ser.flushOutput()
+
+        time.sleep(0.01)
+
         # Send the packet
         self.send_packet(packet, StatusCodes.PacketType.Command.value)
 

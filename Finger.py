@@ -381,25 +381,56 @@ class System(Finger):
             return 1
 
     def set_baudrate(self, baudrate):
+        """
+        Set new baudrate
+        :param baudrate: Communication speed
+        """
         try:
-            # Check baudrate value
-            if baudrate % 9600 != 0 or baudrate < 9600 or baudrate > 115200:
-                raise ValueError("Invalid baudrate")
-
             # Form packet to send
             packet = [0x0e, 4, baudrate//9600]
 
             self._check_ok(self.com.transfer(packet, 12)[0])
-            self.com.ser.setBaudrate = baudrate
+            # self.com.ser.setBaudrate = baudrate  Fixme: Do I need this?
             return 0
 
-        except ValueError as err:
-            logging.error(err)
-            return 1
         except Errors.Error as err:
             logging.error(err.msg)
             return 1
 
+    def set_security(self, level):
+        """
+        Set new security level
+        :param level: Security level
+        :return: 0 on success, 1 on error
+        """
+        packet = [0x0e, 5, level]
 
+        try:
+            self._check_ok(self.com.transfer(packet, 12)[0])
+            return 0
+
+        except Errors.Error as err:
+            logging.error(err.msg)
+            return 1
+
+    def set_packet(self, length):
+        if length == 32:
+            code = 0
+        elif length == 64:
+            code = 1
+        elif length == 128:
+            code = 2
+        else:
+            code = 3
+
+        packet = [0x0e, 5, code]
+
+        try:
+            self._check_ok(self.com.transfer(packet, 12)[0])
+            return 0
+
+        except Errors.Error as err:
+            logging.error(err.msg)
+            return 1
 
 

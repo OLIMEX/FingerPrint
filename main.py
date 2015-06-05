@@ -11,6 +11,7 @@ import Finger
 import logging
 import argparse
 import sys
+import time
 
 
 def parser_hex(value):
@@ -57,7 +58,18 @@ def main():
     sensor_group.add_argument("--set-baud",
                               action="store",
                               type=int,
+                              choices=[9600, 19200, 28800, 38400, 48000, 57600, 67200, 76800, 86400, 96000, 115200],
                               help="Set new speed for the sensor. Range 9600 to 115200")
+    sensor_group.add_argument("--set-security",
+                              action="store",
+                              type=int,
+                              choices=[1, 2, 3, 4, 5],
+                              help="Set security level.")
+    sensor_group.add_argument("--set-packet",
+                              action="store",
+                              type=int,
+                              choices=[32, 64, 128, 256],
+                              help="Set the length of data packet in bytes")
     sensor_group.add_argument("--password",
                               action="store",
                               type=parser_hex,
@@ -119,9 +131,22 @@ def main():
         else:
             logging.debug("Response: OK")
 
+    if args.set_security:
+        logging.debug("\nSetting security to %d" % args.set_security)
+        logging.debug("------------------------------")
+        if sensor.set_security(args.set_security):
+            return 1
+        else:
+            logging.debug("Response: OK")
 
+    if args.set_packet:
+        logging.debug("\nSetting packet length to %d" % args.set_packet)
+        logging.debug("------------------------------")
+        if sensor.set_packet(args.set_packet):
+            return 1
+        else:
+            logging.debug("Response: OK")
 
-    print(args)
 
 if __name__ == '__main__':
     main()
