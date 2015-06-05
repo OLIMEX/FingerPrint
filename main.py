@@ -193,6 +193,8 @@ def main():
     if args.model_delete is not None:
         model.delete_model(args.model_delete[0], args.model_delete[1])
 
+    if args.empty:
+        model.empty_database()
 
 if __name__ == '__main__':
     main()

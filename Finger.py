@@ -363,7 +363,12 @@ class Models(Finger):
 
     def empty_database(self):
         # Form packet to send
-        packet = [0x13]
+        """
+        Delete all stored models
+
+        :return: 0 on success, 1 on error
+        """
+        packet = [0x0d]
 
         try:
             self._check_ok(self.com.transfer(packet, 12)[0])
