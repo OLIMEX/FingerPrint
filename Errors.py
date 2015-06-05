@@ -42,6 +42,12 @@ class Error(Exception):
         # 0x0d
         elif err == ConfirmationCode.execution_failed.value:
             return "Instruction execution failed"
+        # 0x10
+        elif err == ConfirmationCode.remove_failed.value:
+            return "Remove template failed"
+        # 0x11
+        elif err == ConfirmationCode.empty_failed.value:
+            return "Empty failed"
         # 0x13
         elif err == ConfirmationCode.IncorrectPassword.value:
             return "Incorrect password"
@@ -51,6 +57,8 @@ class Error(Exception):
         # 0x18
         elif err == ConfirmationCode.write_flash_error.value:
             return "Write FLASH error"
+        else:
+            return "Unknown error"
 
 
 class WriteError(Error):

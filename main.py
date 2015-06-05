@@ -17,6 +17,7 @@ import time
 def parser_hex(value):
     return int(value, 16)
 
+
 def main():
     # Add epilog
     __epilog = "For suggestions use <" + __email__ + ">"
@@ -51,6 +52,33 @@ def main():
                         action="version",
                         version="%(prog)s 0.1.0",
                         help="Print program version")
+
+    # Models group
+    models_group = parser.add_argument_group("Models",
+                                             "Arguments for models usage").add_mutually_exclusive_group()
+    models_group.add_argument("--list-models",
+                              action="store",
+                              type=int,
+                              choices=[0, 1, 2, 3],
+                              help="Print the usage of model pages")
+    models_group.add_argument("--model-store",
+                              action="store",
+                              type=int,
+                              nargs=2,
+                              metavar=("BUFFER", "PAGE"),
+                              help="Transfer model from buffer# to page#")
+    models_group.add_argument("--model-delete",
+                              action="store",
+                              type=int,
+                              nargs=2,
+                              metavar=("START", "COUNT"),
+                              help="Delete models in the database at START to START+COUNT")
+    models_group.add_argument("--models-count",
+                              action="store_true",
+                              help="Print current models count")
+    models_group.add_argument("--empty",
+                              action="store_true",
+                              help="Empty model database")
 
     # Register common argument group
     sensor_group = parser.add_argument_group("Sensor",
@@ -93,6 +121,7 @@ def main():
 
     # Parse arguments
     args = parser.parse_args()
+    print(args)
 
     # Configure logging
 
@@ -106,6 +135,11 @@ def main():
                            baud=args.baudrate,
                            password=args.password,
                            address=args.address)
+
+    model = Finger.Models(args.port,
+                          baud=args.baudrate,
+                          password=args.password,
+                          address=args.address)
 
     # Check is there is someone
     logging.debug("Connecting with sensor")
@@ -146,6 +180,18 @@ def main():
             return 1
         else:
             logging.debug("Response: OK")
+
+    if args.list_models is not None:
+        model.get_storage_table(args.list_models)
+
+    if args.models_count:
+        model.get_model_count()
+
+    if args.model_store is not None:
+        model.store_model(args.model_store[0], args.model_store[1])
+
+    if args.model_delete is not None:
+        model.delete_model(args.model_delete[0], args.model_delete[1])
 
 
 if __name__ == '__main__':

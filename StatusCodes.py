@@ -29,6 +29,8 @@ class ConfirmationCode(enum.Enum):
     InvalidPageID = 0x0b
     InvalidTemplate = 0x0c
     execution_failed = 0x0d
+    remove_failed = 0x10
+    empty_failed = 0x11
     IncorrectPassword = 0x13
     InvalidImage = 0x15
     write_flash_error = 0x18

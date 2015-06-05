@@ -11,7 +11,6 @@ import StatusCodes
 import Errors
 
 import sys
-import logging
 
 from PIL import Image
 
@@ -32,8 +31,7 @@ class Finger:
         # System parameters
         self._packet_size = None
         self._system_id = None
-        self._stored_fingerprints = None
-        self._capacity_fingerprints = None
+        self._database_size = None
         self._secure_level = None
 
         # Open serial port
@@ -74,7 +72,7 @@ class Finger:
                 # TODO: Continue from here
         except Errors.Error as err:
             sys.stderr.write("Fail\n")
-            sys.stderr.write(err.msg + "\n")
+            sys.stderr.write(err.msg + "\n" + "\n")
             sys.exit(1)
 
     def gen_image(self):
@@ -99,7 +97,7 @@ class Finger:
 
         except Errors.Error as err:
             sys.stderr.write("Fail\n")
-            sys.stderr.write(err.msg + "\n")
+            sys.stderr.write(err.msg + "\n" + "\n")
             sys.exit(1)
 
     def image_2_tz(self, buffer_id):
@@ -127,7 +125,7 @@ class Finger:
 
         except Errors.Error as err:
             sys.stderr.write("Fail\n")
-            sys.stderr.write(err.msg + "\n")
+            sys.stderr.write(err.msg + "\n" + "\n")
             sys.exit(1)
 
     def register_model(self):
@@ -152,33 +150,10 @@ class Finger:
 
         except Errors.Error as err:
             sys.stderr.write("Fail\n")
-            sys.stderr.write(err.msg + "\n")
+            sys.stderr.write(err.msg + "\n" + "\n")
             sys.exit(1)
 
-    def store_model(self, page_id):
 
-        sys.stderr.write("Store model: ")
-
-        # Form packet
-        packet = [0x06, 0x01, page_id >> 8 & 0xFF, page_id & 0xFF]
-
-        try:
-            # Send packet
-            self.com.send_packet(packet, StatusCodes.PacketType.Command)
-
-            # Read response
-            ret = self.com.read_packet(12, StatusCodes.PacketType.Ack)
-
-            # Is response is not OK raise error
-            if ret[0] != 0x00:
-                raise Errors.StatusError(Errors.Error.print_error(ret[0]))
-            else:
-                sys.stderr.write("OK\n")
-
-        except Errors.Error as err:
-            sys.stderr.write("Fail\n")
-            sys.stderr.write(err.msg + "\n")
-            sys.exit(1)
 
     def load_model(self, page_id):
 
@@ -202,7 +177,7 @@ class Finger:
 
         except Errors.Error as err:
             sys.stderr.write("Fail\n")
-            sys.stderr.write(err.msg + "\n")
+            sys.stderr.write(err.msg + "\n" + "\n")
             sys.exit(1)
 
     def get_model(self):
@@ -244,7 +219,7 @@ class Finger:
 
         except Errors.Error as err:
             sys.stderr.write("Fail\n")
-            sys.stderr.write(err.msg + "\n")
+            sys.stderr.write(err.msg + "\n" + "\n")
             sys.exit(1)
 
 
@@ -260,6 +235,17 @@ class Finger:
         return [(data >> 24 & 0xFF),
                 (data >> 16 & 0xFF),
                 (data >> 8 & 0xFF),
+                (data >> 0 & 0xFF)]
+
+    @staticmethod
+    def _16_to_list(data):
+        """
+        Convert 2-byte integer to list.
+
+        :param data: 2-byte integer
+        :return: Converted list
+        """
+        return [(data >> 8 & 0xFF),
                 (data >> 0 & 0xFF)]
 
     @staticmethod
@@ -287,6 +273,107 @@ class Finger:
         img.save("finger.bmp", "BMP")
 
 
+class Models(Finger):
+
+    def get_storage_table(self, page):
+        """
+        Print page usage
+        :param page: Number of the page
+        :return: 0 for success, 1 for error
+        """
+        packet = [0x1f, page]
+
+        try:
+            ret = self.com.transfer(packet, 44)
+            self._check_ok(ret[0])
+
+            # Print usage table
+            print("\t15 14 13 12 11 10 9  8  7  6  5  4  3  2  1  0")
+
+            for j in range(1, 33, 2):
+                sys.stderr.write("%d\t" % ((j-1)*8))
+                for i in range(7, -1, -1):
+                    if ret[j+1] & (1 << i):
+                        sys.stderr.write("x  ")
+                    else:
+                        sys.stderr.write(".  ")
+                for i in range(7, -1, -1):
+                    if ret[j] & (1 << i):
+                        sys.stderr.write("x  ")
+                    else:
+                        sys.stderr.write(".  ")
+                sys.stderr.write("\n")
+
+            return 0
+        except Errors.Error as err:
+            sys.stderr.write(err.msg + "\n")
+            return 1
+
+    def get_model_count(self):
+        """
+        Print current models count
+
+        :return: 0 on success, 1 on error
+        """
+        packet = [0x1d]
+        try:
+            ret = self.com.transfer(packet, 14)
+            self._check_ok(ret[0])
+            sys.stderr.write("Models count: %d\n" % (ret[1] << 8 | ret[2]))
+            return 0
+        except Errors.Error as err:
+            sys.stderr.write(err.msg + "\n")
+            return 1
+
+    def store_model(self, buffer_id, page_id):
+        """
+        Store current model in buffer1 or buffer2 to page address
+        :param buffer_id: Current BufferID
+        :param page_id: Location
+        :return: 0 on success, 1 on error
+        """
+
+         # Form packet
+        packet = [0x06, buffer_id] + self._16_to_list(page_id)
+
+        try:
+            ret = self.com.transfer(packet, 14)
+            self._check_ok(ret[0])
+            return 0
+        except Errors.Error as err:
+            sys.stderr.write(err.msg + "\n")
+            return 1
+
+    def delete_model(self, start_id, count):
+        """
+        Delete models
+        :param start_id: Start address
+        :param count: Number of models to remove
+        :return: 0 on success, 1 of fail
+        """
+        packet = [0x0c] + self._16_to_list(start_id) + self._16_to_list(count)
+
+        try:
+            self._check_ok(self.com.transfer(packet, 12)[0])
+            return 0
+
+        except Errors.Error as err:
+            sys.stderr.write(err.msg + "\n")
+            return 1
+
+    def empty_database(self):
+        # Form packet to send
+        packet = [0x13]
+
+        try:
+            self._check_ok(self.com.transfer(packet, 12)[0])
+            return 0
+
+        except Errors.Error as err:
+            sys.stderr.write(err.msg + "\n")
+            return 1
+
+
 class System(Finger):
 
     def verify_password(self):
@@ -305,7 +392,7 @@ class System(Finger):
             return 0
 
         except Errors.Error as err:
-            logging.error(err.msg)
+            sys.stderr.write(err.msg + "\n")
             return 1
 
     def set_password(self, password):
@@ -325,7 +412,7 @@ class System(Finger):
             return 0
 
         except Errors.Error as err:
-            logging.error(err.msg)
+            sys.stderr.write(err.msg + "\n")
             return 1
 
     def set_address(self, address):
@@ -346,7 +433,7 @@ class System(Finger):
             return 0
 
         except Errors.Error as err:
-            logging.error(err.msg)
+            sys.stderr.write(err.msg + "\n")
             return 1
 
     def read_system_params(self):
@@ -358,26 +445,25 @@ class System(Finger):
         packet = [0x0f]
 
         try:
-            ret=self.com.transfer(packet, 28)
+            ret = self.com.transfer(packet, 28)
             self._check_ok(ret[0])
 
-            self._system_id = ret[1] << 8 | ret[2]
-            self._stored_fingerprints = ret[3] << 8 | ret[4]
-            self._capacity_fingerprints = ret[5] << 8 | ret[6]
+            self._system_id = ret[3] << 8 | ret[4]
+            self._database_size = ret[5] << 8 | ret[6]
             self._secure_level = ret[7] << 8 | ret[8]
             self._packet_size = 32 * pow(2, (ret[13] << 8 | ret[14] + 1))
 
-            logging.info("System ID: 0x%04x" % self._system_id)
-            logging.info("Fingerprint database: %d" % self._stored_fingerprints)
-            logging.info("Storage capacity: %d" % self._capacity_fingerprints)
-            logging.info("Security level: %d" % self._secure_level)
-            logging.info("Device address: 0x%08x" % (ret[9] << 24 | ret[10] << 16 | ret[11] << 8 | ret[12]))
-            logging.info("Packet size: %d bytes" % self._packet_size)
-            logging.info("Baudrate: %d bps\n" % (ret[15] << 8 | ret[16] * 9600))
+            sys.stderr.write("Status register 0x%02x\n" % (ret[1] << 8 | ret[2]))
+            sys.stderr.write("System ID: 0x%04x\n" % self._system_id)
+            sys.stderr.write("Fingerprint database size: %d\n" % self._database_size)
+            sys.stderr.write("Security level: %d\n" % self._secure_level)
+            sys.stderr.write("Device address: 0x%08x\n" % (ret[9] << 24 | ret[10] << 16 | ret[11] << 8 | ret[12]))
+            sys.stderr.write("Packet size: %d bytes\n" % self._packet_size)
+            sys.stderr.write("Baudrate: %d bps\n" % (ret[15] << 8 | ret[16] * 9600))
             return 0
 
         except Errors.Error as err:
-            logging.error(err.msg)
+            sys.stderr.write(err.msg + "\n")
             return 1
 
     def set_baudrate(self, baudrate):
@@ -394,7 +480,7 @@ class System(Finger):
             return 0
 
         except Errors.Error as err:
-            logging.error(err.msg)
+            sys.stderr.write(err.msg + "\n")
             return 1
 
     def set_security(self, level):
@@ -410,10 +496,16 @@ class System(Finger):
             return 0
 
         except Errors.Error as err:
-            logging.error(err.msg)
+            sys.stderr.write(err.msg + "\n")
             return 1
 
     def set_packet(self, length):
+
+        """
+        Set packet length
+        :param length:
+        :return: 0 on success, 1 on error
+        """
         if length == 32:
             code = 0
         elif length == 64:
@@ -430,7 +522,7 @@ class System(Finger):
             return 0
 
         except Errors.Error as err:
-            logging.error(err.msg)
+            sys.stderr.write(err.msg + "\n")
             return 1
 
 
