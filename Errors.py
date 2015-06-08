@@ -1,3 +1,5 @@
+from django.db.models.functions import Concat
+
 __author__ = "Stefan Mavrodiev"
 __copyright__ = "Copyright 2015, Olimex LTD"
 __credits__ = ["Stefan Mavrodiev"]
@@ -30,6 +32,9 @@ class Error(Exception):
         # 0x07
         elif err == ConfirmationCode.ImageSmall.value:
             return "Fingerprint image is normal, but the feature points are too few"
+        # 0x08
+        elif err == ConfirmationCode.image_mismatch.value:
+            return "Fingerprints do not match"
         # 0x0a
         elif err == ConfirmationCode.MergeFailed.value:
             return "Merge failed. (The two fingerprints does not belong to the same finger)"
@@ -42,6 +47,8 @@ class Error(Exception):
         # 0x0d
         elif err == ConfirmationCode.execution_failed.value:
             return "Instruction execution failed"
+        elif err == ConfirmationCode.followup_failed.value:
+            return "Follow-up package receive error"
         # 0x10
         elif err == ConfirmationCode.remove_failed.value:
             return "Remove template failed"

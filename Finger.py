@@ -14,6 +14,12 @@ import sys
 
 from PIL import Image
 
+# System parameters
+_packet_size = None
+_system_id = None
+_database_size = None
+_secure_level = None
+
 
 class Finger:
     def __init__(self, port, baud=57600, password=0x00000000, address=0xffffffff):
@@ -28,198 +34,11 @@ class Finger:
         self._password = password
         self._address = address
 
-        # System parameters
-        self._packet_size = None
-        self._system_id = None
-        self._database_size = None
-        self._secure_level = None
-
         # Open serial port
         try:
             self.com = Communication.Communication(port=port, device_address=self._address, baud_rate=baud)
         except IOError as err:
             print(err)
-            sys.exit(1)
-
-
-
-
-
-    def up_image(self):
-
-        sys.stderr.write("Uploading image: ")
-
-        # Form packet
-        packet = [0x0a]
-
-        try:
-            # Send packet
-            self.com.send_packet(packet, StatusCodes.PacketType.Command)
-
-            # Read response
-            ret = self.com.read_packet(12, StatusCodes.PacketType.Ack)
-
-            # Is response is not OK raise error
-            if ret[0] != 0x00:
-                raise Errors.StatusError(Errors.Error.print_error(ret[0]))
-            else:
-                sys.stderr.write("OK\n")
-
-            # Read the image
-            if self.packet_size is None:
-                raise Errors.ReadError("Unknown packet size")
-
-                # TODO: Continue from here
-        except Errors.Error as err:
-            sys.stderr.write("Fail\n")
-            sys.stderr.write(err.msg + "\n" + "\n")
-            sys.exit(1)
-
-    def gen_image(self):
-
-        sys.stderr.write("Generating image: ")
-
-        # Form packet
-        packet = [0x01]
-
-        try:
-            # Send packet
-            self.com.send_packet(packet, StatusCodes.PacketType.Command)
-
-            # Read response
-            ret = self.com.read_packet(12, StatusCodes.PacketType.Ack)
-
-            # Is response is not OK raise error
-            if ret[0] != 0x00:
-                raise Errors.StatusError(Errors.Error.print_error(ret[0]))
-            else:
-                sys.stderr.write("OK\n")
-
-        except Errors.Error as err:
-            sys.stderr.write("Fail\n")
-            sys.stderr.write(err.msg + "\n" + "\n")
-            sys.exit(1)
-
-    def image_2_tz(self, buffer_id):
-
-        sys.stderr.write("Converting image: ")
-
-        # Form packet
-        if buffer_id not in [1, 2]:
-            raise Errors.StatusError("Invalid BufferID")
-
-        packet = [0x02, buffer_id]
-
-        try:
-            # Send packet
-            self.com.send_packet(packet, StatusCodes.PacketType.Command)
-
-            # Read response
-            ret = self.com.read_packet(12, StatusCodes.PacketType.Ack)
-
-            # Is response is not OK raise error
-            if ret[0] != 0x00:
-                raise Errors.StatusError(Errors.Error.print_error(ret[0]))
-            else:
-                sys.stderr.write("OK\n")
-
-        except Errors.Error as err:
-            sys.stderr.write("Fail\n")
-            sys.stderr.write(err.msg + "\n" + "\n")
-            sys.exit(1)
-
-    def register_model(self):
-
-        sys.stderr.write("Generating model: ")
-
-        # Form packet
-        packet = [0x05]
-
-        try:
-            # Send packet
-            self.com.send_packet(packet, StatusCodes.PacketType.Command)
-
-            # Read response
-            ret = self.com.read_packet(12, StatusCodes.PacketType.Ack)
-
-            # Is response is not OK raise error
-            if ret[0] != 0x00:
-                raise Errors.StatusError(Errors.Error.print_error(ret[0]))
-            else:
-                sys.stderr.write("OK\n")
-
-        except Errors.Error as err:
-            sys.stderr.write("Fail\n")
-            sys.stderr.write(err.msg + "\n" + "\n")
-            sys.exit(1)
-
-
-
-    def load_model(self, page_id):
-
-        sys.stderr.write("Load model: ")
-
-        # Form packet
-        packet = [0x07, 0x01, page_id >> 8 & 0xFF, page_id & 0xFF]
-
-        try:
-            # Send packet
-            self.com.send_packet(packet, StatusCodes.PacketType.Command)
-
-            # Read response
-            ret = self.com.read_packet(12, StatusCodes.PacketType.Ack)
-
-            # Is response is not OK raise error
-            if ret[0] != 0x00:
-                raise Errors.StatusError(Errors.Error.print_error(ret[0]))
-            else:
-                sys.stderr.write("OK\n")
-
-        except Errors.Error as err:
-            sys.stderr.write("Fail\n")
-            sys.stderr.write(err.msg + "\n" + "\n")
-            sys.exit(1)
-
-    def get_model(self):
-        sys.stderr.write("Getting model: ")
-
-        image = []
-
-        packet = [0x0a, 0x01]
-        try:
-            # Send packet
-            self.com.send_packet(packet, StatusCodes.PacketType.Command)
-
-            # Read response
-            ret = self.com.read_packet(12, StatusCodes.PacketType.Ack)
-
-            # Is response is not OK raise error
-            if ret[0] != 0x00:
-                raise Errors.StatusError(Errors.Error.print_error(ret[0]))
-            else:
-                sys.stderr.write("OK\n")
-
-            sys.stderr.write("Downloading: ")
-
-            for i in range(288):
-                if i != 287:
-                    data = self.com.read_packet(11 + self.packet_size, StatusCodes.PacketType.Data)
-                else:
-                    data = self.com.read_packet(11 + self.packet_size, StatusCodes.PacketType.EndData)
-
-                sys.stderr.write("\rDownloading: %.2f" % ((i/287)*100))
-
-                if not data:
-                    raise Errors.StatusError("No data")
-
-                image += data
-
-            sys.stderr.write("OK\n")
-            self.create_image(image)
-
-        except Errors.Error as err:
-            sys.stderr.write("Fail\n")
-            sys.stderr.write(err.msg + "\n" + "\n")
             sys.exit(1)
 
 
@@ -249,6 +68,15 @@ class Finger:
                 (data >> 0 & 0xFF)]
 
     @staticmethod
+    def _bytes_to_list(data):
+        """
+        Convert bytes array to list
+        :param data: bytes array
+        :return: list with data
+        """
+        return [x for x in data]
+
+    @staticmethod
     def _check_ok(response):
         if response != StatusCodes.ConfirmationCode.OK.value:
             raise Errors.StatusError(Errors.Error.print_error(response))
@@ -271,6 +99,44 @@ class Finger:
                 img.putpixel((x, y), data2[x + (y * 256)])
 
         img.save("finger.bmp", "BMP")
+
+
+class Image(Finger):
+
+    def download_image(self, file):
+        pass
+
+    def upload_image(self, file):
+
+        image = []
+        # FIXME: Not working....
+
+        packet = [0x0a]
+        try:
+
+            self._check_ok(self.com.transfer(packet, 12)[0])
+            sys.stderr.write("Downloading: ")
+
+            for i in range(288):
+                if i != 287:
+                    data = self.com.read_packet(11 + _packet_size//2, StatusCodes.PacketType.Data)
+                else:
+                    data = self.com.read_packet(11 + _packet_size//2, StatusCodes.PacketType.EndData)
+
+                sys.stderr.write("\rDownloading: %.2f" % ((i/287)*100))
+
+                if not data:
+                    raise Errors.StatusError("No data")
+
+                image += data
+
+            sys.stderr.write("OK\n")
+            # self.create_image(image)
+            return 0
+
+        except Errors.Error as err:
+            sys.stderr.write(err.msg + "\n")
+            return 1
 
 
 class Models(Finger):
@@ -378,6 +244,173 @@ class Models(Finger):
             sys.stderr.write(err.msg + "\n")
             return 1
 
+    def load_model(self, buffer_id, page_id):
+
+        """
+        Load characteristic model into CharBuffer1 or CharBuffer2
+
+        :param buffer_id: BufferID
+        :param page_id: Template number
+        :return: 0 on success, 1 on error
+        """
+        packet = [0x07, buffer_id]+ self._16_to_list(page_id)
+
+        try:
+            self._check_ok(self.com.transfer(packet, 12)[0])
+            return 0
+
+        except Errors.Error as err:
+            sys.stderr.write(err.msg + "\n")
+            return 1
+
+    def upload_model(self, buffer_id, file):
+
+        """
+        Transfer content of buffer into file at the host computer
+        :param buffer_id: CharBufferID (1 or 2)
+        :param file: Output file
+        :return: 0 on success, 1 on error
+        """
+        packet = [0x08, int(buffer_id)]
+        data = []
+
+        try:
+            # Run
+            ret = self.com.transfer(packet, 12)
+            self._check_ok(ret[0])
+
+            # Read data
+            xfer_count = 512//(_packet_size//2)
+            for i in range(xfer_count):
+                if i != xfer_count - 1:
+                    data += self.com.read_packet(_packet_size//2 + 11, StatusCodes.PacketType.Data.value)
+                else:
+                    data += self.com.read_packet(_packet_size//2 + 11, StatusCodes.PacketType.EndData.value)
+
+            # Write to file
+            with open(file, 'wb') as f:
+                f.write(bytearray(data))
+                f.close()
+
+            return 0
+        except Errors.Error as err:
+            sys.stderr.write(err.msg + "\n")
+            return 1
+
+    def download_model(self, buffer_id, file):
+
+        """
+        Transfer file to buffer
+        :param buffer_id: Number of char buffer
+        :param file: Input file
+        :return: 0 on success, 1 on error
+        """
+        packet = [0x09, int(buffer_id)]
+
+        try:
+            # Send command
+            ret = self.com.transfer(packet, 12)
+            self._check_ok(ret[0])
+
+            # Send data
+            xfer_count = 512//(_packet_size//2)
+            with open(file, 'rb') as f:
+                for i in range(xfer_count):
+                    data = f.read(_packet_size//2)
+                    if i != xfer_count-1:
+                        self.com.send_packet(self._bytes_to_list(data), StatusCodes.PacketType.Data.value)
+                    else:
+                        self.com.send_packet(self._bytes_to_list(data), StatusCodes.PacketType.EndData.value)
+
+        except Errors.Error as err:
+            sys.stderr.write(err.msg + "\n")
+            return 1
+
+    def generate_model(self):
+        """
+        Take fingerprint image
+
+        :return: 0 on success, 1 on error
+        """
+        packet = [0x01]
+
+        try:
+            self._check_ok(self.com.transfer(packet, 12)[0])
+            return 0
+
+        except Errors.Error as err:
+            sys.stderr.write(err.msg + "\n")
+            return 1
+
+    def generate_characteristics(self, buffer_id):
+        """
+        Generate fingerprint characteristics from the image in ImageBuffer
+        :param buffer_id: CharBuffer
+        :return: 0 in success, 1 on error
+        """
+        packet = [0x02, buffer_id]
+        try:
+            self._check_ok(self.com.transfer(packet, 12)[0])
+            return 0
+
+        except Errors.Error as err:
+            sys.stderr.write(err.msg + "\n")
+            return 1
+
+    def register_model(self):
+        """
+        Compare charBuffer1 and charBuffer2 and generate signature model
+
+        :return: 0 on success, 1 on error
+        """
+        packet = [0x05]
+        try:
+            self._check_ok(self.com.transfer(packet, 12)[0])
+            return 0
+        except Errors.Error as err:
+            sys.stderr.write(err.msg + "\n")
+            return 1
+
+    def match_model(self):
+        """
+
+        Compare CharBuffer1 and CharBuffer2 for match
+        :return:
+        """
+        packet = [0x03]
+        try:
+            ret = self.com.transfer(packet, 14)
+            self._check_ok(ret[0])
+
+            sys.stderr.write("Score: %d\n" % (ret[1] << 8 | ret[2]))
+            return 0
+
+        except Errors.Error as err:
+            sys.stderr.write(err.msg + "\n")
+            return 1
+
+    def search_model(self, buffer_id, start_page, num_pages):
+        """
+        Search for matching model in the database
+        :param buffer_id: charBuffer number
+        :param start_page: Start point in the database
+        :param num_pages: Number of elements to search
+        :return: 0 on success, 1 on fail
+        """
+        packet = [0x04, buffer_id] + self._16_to_list(start_page) + self._16_to_list(num_pages)
+
+        try:
+            ret = self.com.transfer(packet, 16)
+            self._check_ok(ret[0])
+
+            sys.stderr.write("Page: %d\n" % (ret[1] << 8 | ret[2]))
+            sys.stderr.write("Score: %d\n" % (ret[3] << 8 | ret[4]))
+            return 0
+
+        except Errors.Error as err:
+            sys.stderr.write(err.msg + "\n")
+            return 1
+
 
 class System(Finger):
 
@@ -453,17 +486,24 @@ class System(Finger):
             ret = self.com.transfer(packet, 28)
             self._check_ok(ret[0])
 
-            self._system_id = ret[3] << 8 | ret[4]
-            self._database_size = ret[5] << 8 | ret[6]
-            self._secure_level = ret[7] << 8 | ret[8]
-            self._packet_size = 32 * pow(2, (ret[13] << 8 | ret[14] + 1))
+            global _system_id
+            _system_id = ret[3] << 8 | ret[4]
+
+            global _database_size
+            _database_size = ret[5] << 8 | ret[6]
+
+            global _secure_level
+            _secure_level = ret[7] << 8 | ret[8]
+
+            global _packet_size
+            _packet_size = 32 * pow(2, (ret[13] << 8 | ret[14] + 1))
 
             sys.stderr.write("Status register 0x%02x\n" % (ret[1] << 8 | ret[2]))
-            sys.stderr.write("System ID: 0x%04x\n" % self._system_id)
-            sys.stderr.write("Fingerprint database size: %d\n" % self._database_size)
-            sys.stderr.write("Security level: %d\n" % self._secure_level)
+            sys.stderr.write("System ID: 0x%04x\n" % _system_id)
+            sys.stderr.write("Fingerprint database size: %d\n" % _database_size)
+            sys.stderr.write("Security level: %d\n" % _secure_level)
             sys.stderr.write("Device address: 0x%08x\n" % (ret[9] << 24 | ret[10] << 16 | ret[11] << 8 | ret[12]))
-            sys.stderr.write("Packet size: %d bytes\n" % self._packet_size)
+            sys.stderr.write("Packet size: %d bytes\n" % _packet_size)
             sys.stderr.write("Baudrate: %d bps\n" % (ret[15] << 8 | ret[16] * 9600))
             return 0
 

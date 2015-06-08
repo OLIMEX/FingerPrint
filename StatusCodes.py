@@ -23,12 +23,13 @@ class ConfirmationCode(enum.Enum):
     InputImageFail = 0x03
     ImageMessy = 0x06
     ImageSmall = 0x07
-    ImageMismatch = 0x08
+    image_mismatch = 0x08
     DintSearch = 0x09
     MergeFailed = 0x0a
     InvalidPageID = 0x0b
     InvalidTemplate = 0x0c
     execution_failed = 0x0d
+    followup_failed = 0x0e
     remove_failed = 0x10
     empty_failed = 0x11
     IncorrectPassword = 0x13

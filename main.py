@@ -73,9 +73,46 @@ def main():
                               nargs=2,
                               metavar=("START", "COUNT"),
                               help="Delete models in the database at START to START+COUNT")
+    models_group.add_argument("--model-load",
+                              action="store",
+                              type=int,
+                              nargs=2,
+                              metavar=("BUFFER", "PAGE"),
+                              help="Load model at #PAGE into #BUFFER")
+    models_group.add_argument("--model-upload",
+                              action="store",
+                              nargs=2,
+                              metavar=("BUFFER", "FILE"),
+                              help="Transfer the content of #BUFFER to #FILE on the host computer")
+    models_group.add_argument("--model-download",
+                              action="store",
+                              nargs=2,
+                              metavar=("BUFFER", "FILE"),
+                              help="Transfer the content of #FILE to #BUFFER")
+    models_group.add_argument("--model-generate",
+                              action="store_true",
+                              help="Generate fingerprint image")
+    models_group.add_argument("--model-chars",
+                              action="store",
+                              type=int,
+                              choices=[1, 2],
+                              metavar="BUFFER",
+                              help="Generate characteristics from the image in the ImageBuffer and store it in #BUFFER")
+    models_group.add_argument("--model-match",
+                              action="store_true",
+                              help="Compare models in charBuffer1 and charBuffer2 and look for match")
+    models_group.add_argument("--model-search",
+                              action="store",
+                              type=int,
+                              nargs=3,
+                              metavar=("BUFFER", "START", "COUNT"),
+                              help="Search the database for match to the model stored in #BUFFER")
     models_group.add_argument("--models-count",
                               action="store_true",
                               help="Print current models count")
+    models_group.add_argument("--model-register",
+                              action="store_true",
+                              help="Compare CharBuffer1 with CharBuffer2 and creates model")
     models_group.add_argument("--empty",
                               action="store_true",
                               help="Empty model database")
@@ -112,19 +149,19 @@ def main():
     # Register argument group
     image_group = parser.add_argument_group("Fingerprint image",
                                             "Actions with ImageBuffer").add_mutually_exclusive_group()
-    image_group.add_argument("--download",
+    image_group.add_argument("--image-download",
                              action="store",
-                             help="Download fingerprint image from the sensor")
-    image_group.add_argument("--upload",
+                             metavar="FILE",
+                             help="Download fingerprint image from host PC to the sensor")
+    image_group.add_argument("--image-upload",
                              action="store",
-                             help="Upload fingerprint image to the sensor")
+                             metavar="FILE",
+                             help="Upload fingerprint image from sensor to host PC")
 
     # Parse arguments
     args = parser.parse_args()
-    print(args)
 
     # Configure logging
-
     if args.verbose:
         logging.basicConfig(format="%(message)s", level=logging.DEBUG)
     else:
@@ -137,6 +174,11 @@ def main():
                            address=args.address)
 
     model = Finger.Models(args.port,
+                          baud=args.baudrate,
+                          password=args.password,
+                          address=args.address)
+
+    image = Finger.Image(args.port,
                           baud=args.baudrate,
                           password=args.password,
                           address=args.address)
@@ -193,8 +235,39 @@ def main():
     if args.model_delete is not None:
         model.delete_model(args.model_delete[0], args.model_delete[1])
 
+    if args.model_load is not None:
+        model.load_model(args.model_load[0], args.model_load[1])
+
+    if args.model_upload is not None:
+        sensor.read_system_params()
+        model.upload_model(args.model_upload[0], args.model_upload[1])
+
+    if args.model_download is not None:
+        sensor.read_system_params()
+        model.download_model(args.model_download[0], args.model_download[1])
+
+    if args.model_generate:
+        model.generate_model()
+
+    if args.model_chars is not None:
+        model.generate_characteristics(args.model_chars)
+
+    if args.model_generate:
+        model.register_model()
+
+    if args.model_match:
+        model.match_model()
+
+    if args.model_search is not None:
+        model.search_model(args.model_search[0], args.model_search[1], args.model_search[2])
+
+    if args.image_upload is not None:
+        sensor.read_system_params()
+        image.upload_image(args.image_upload[0])
+
     if args.empty:
         model.empty_database()
+
 
 if __name__ == '__main__':
     main()
