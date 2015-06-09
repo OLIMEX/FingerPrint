@@ -12,13 +12,14 @@ import Errors
 
 import sys
 
-from PIL import Image
+# from PIL import Image
+import PIL.Image
 
 # System parameters
-_packet_size = None
-_system_id = None
-_database_size = None
-_secure_level = None
+packet_size = None
+system_id = None
+database_size = None
+secure_level = None
 
 
 class Finger:
@@ -43,7 +44,7 @@ class Finger:
 
 
     @staticmethod
-    def _u32_to_list(data):
+    def u32_to_list(data):
         """
         Convert 4-byte integer to list,
         Byte order is MSB first, LSB last.
@@ -57,7 +58,7 @@ class Finger:
                 (data >> 0 & 0xFF)]
 
     @staticmethod
-    def _16_to_list(data):
+    def u16_to_list(data):
         """
         Convert 2-byte integer to list.
 
@@ -68,7 +69,7 @@ class Finger:
                 (data >> 0 & 0xFF)]
 
     @staticmethod
-    def _bytes_to_list(data):
+    def bytes_to_list(data):
         """
         Convert bytes array to list
         :param data: bytes array
@@ -77,12 +78,22 @@ class Finger:
         return [x for x in data]
 
     @staticmethod
-    def _check_ok(response):
+    def check_ok(response):
+        """
+        Check if response is OK
+        :param response: Received response code
+        :raise Errors.StatusError: If response doesn't match
+        """
         if response != StatusCodes.ConfirmationCode.OK.value:
             raise Errors.StatusError(Errors.Error.print_error(response))
 
     @staticmethod
-    def convert_image(data):
+    def __convert_image(data):
+        """
+        Convert from 1 byte for 2 pixels to 2 bytes for 2 pixels
+        :param data: Input data
+        :return: Converter data
+        """
         new_image = []
         for i in data:
             new_image += [(i & 0xF0), (i & 0x0F) << 4]
@@ -90,40 +101,48 @@ class Finger:
         return new_image
 
     @staticmethod
-    def create_image(data):
-        img = Image.new('L', (256, 288), 'white')
-        data2 = Finger.convert_image(data)
+    def create_image(data, file):
+        """
+        Create new bmp file and fill it with the data
+        :param data: Image data
+        :param file: File name
+        """
+        img = PIL.Image.new('L', (256, 288), 'white')
+        data2 = Finger.__convert_image(data)
 
         for y in range(288):
             for x in range(256):
                 img.putpixel((x, y), data2[x + (y * 256)])
 
-        img.save("finger.bmp", "BMP")
+        img.save(file + ".bmp", "BMP")
 
 
 class Image(Finger):
 
-    def download_image(self, file):
-        pass
-
     def upload_image(self, file):
 
+        """
+        Transfer image from ImageBuffer from sensor to host PC
+
+        :param file: Name of the output file
+        :return: :raise Errors.StatusError: 0 on success, 1 on error
+        """
         image = []
-        # FIXME: Not working....
 
         packet = [0x0a]
         try:
-
-            self._check_ok(self.com.transfer(packet, 12)[0])
+            ret = self.com.transfer(packet, 12)
+            self.check_ok(ret[0])
             sys.stderr.write("Downloading: ")
 
-            for i in range(288):
-                if i != 287:
-                    data = self.com.read_packet(11 + _packet_size//2, StatusCodes.PacketType.Data)
+            count = 288 * (256 / packet_size)
+            for i in range(count):
+                if i != count - 1:
+                    data = self.com.read_packet(11 + packet_size // 2, StatusCodes.PacketType.Data.value)
                 else:
-                    data = self.com.read_packet(11 + _packet_size//2, StatusCodes.PacketType.EndData)
+                    data = self.com.read_packet(11 + packet_size // 2, StatusCodes.PacketType.EndData.value)
 
-                sys.stderr.write("\rDownloading: %.2f" % ((i/287)*100))
+                sys.stderr.write("\rDownloading: %.2f " % (i / (count - 1) * 100))
 
                 if not data:
                     raise Errors.StatusError("No data")
@@ -131,7 +150,7 @@ class Image(Finger):
                 image += data
 
             sys.stderr.write("OK\n")
-            # self.create_image(image)
+            self.create_image(image, file)
             return 0
 
         except Errors.Error as err:
@@ -151,7 +170,7 @@ class Models(Finger):
 
         try:
             ret = self.com.transfer(packet, 44)
-            self._check_ok(ret[0])
+            self.check_ok(ret[0])
 
             # Print usage table
             print("\t15 14 13 12 11 10 9  8  7  6  5  4  3  2  1  0")
@@ -184,7 +203,7 @@ class Models(Finger):
         packet = [0x1d]
         try:
             ret = self.com.transfer(packet, 14)
-            self._check_ok(ret[0])
+            self.check_ok(ret[0])
             sys.stderr.write("Models count: %d\n" % (ret[1] << 8 | ret[2]))
             return 0
         except Errors.Error as err:
@@ -200,11 +219,11 @@ class Models(Finger):
         """
 
          # Form packet
-        packet = [0x06, buffer_id] + self._16_to_list(page_id)
+        packet = [0x06, buffer_id] + self.u16_to_list(page_id)
 
         try:
             ret = self.com.transfer(packet, 14)
-            self._check_ok(ret[0])
+            self.check_ok(ret[0])
             return 0
         except Errors.Error as err:
             sys.stderr.write(err.msg + "\n")
@@ -217,10 +236,10 @@ class Models(Finger):
         :param count: Number of models to remove
         :return: 0 on success, 1 of fail
         """
-        packet = [0x0c] + self._16_to_list(start_id) + self._16_to_list(count)
+        packet = [0x0c] + self.u16_to_list(start_id) + self.u16_to_list(count)
 
         try:
-            self._check_ok(self.com.transfer(packet, 12)[0])
+            self.check_ok(self.com.transfer(packet, 12)[0])
             return 0
 
         except Errors.Error as err:
@@ -237,7 +256,7 @@ class Models(Finger):
         packet = [0x0d]
 
         try:
-            self._check_ok(self.com.transfer(packet, 12)[0])
+            self.check_ok(self.com.transfer(packet, 12)[0])
             return 0
 
         except Errors.Error as err:
@@ -253,10 +272,10 @@ class Models(Finger):
         :param page_id: Template number
         :return: 0 on success, 1 on error
         """
-        packet = [0x07, buffer_id]+ self._16_to_list(page_id)
+        packet = [0x07, buffer_id] + self.u16_to_list(page_id)
 
         try:
-            self._check_ok(self.com.transfer(packet, 12)[0])
+            self.check_ok(self.com.transfer(packet, 12)[0])
             return 0
 
         except Errors.Error as err:
@@ -277,15 +296,15 @@ class Models(Finger):
         try:
             # Run
             ret = self.com.transfer(packet, 12)
-            self._check_ok(ret[0])
+            self.check_ok(ret[0])
 
             # Read data
-            xfer_count = 512//(_packet_size//2)
+            xfer_count = 512 // (packet_size // 2)
             for i in range(xfer_count):
                 if i != xfer_count - 1:
-                    data += self.com.read_packet(_packet_size//2 + 11, StatusCodes.PacketType.Data.value)
+                    data += self.com.read_packet(packet_size // 2 + 11, StatusCodes.PacketType.Data.value)
                 else:
-                    data += self.com.read_packet(_packet_size//2 + 11, StatusCodes.PacketType.EndData.value)
+                    data += self.com.read_packet(packet_size // 2 + 11, StatusCodes.PacketType.EndData.value)
 
             # Write to file
             with open(file, 'wb') as f:
@@ -310,17 +329,17 @@ class Models(Finger):
         try:
             # Send command
             ret = self.com.transfer(packet, 12)
-            self._check_ok(ret[0])
+            self.check_ok(ret[0])
 
             # Send data
-            xfer_count = 512//(_packet_size//2)
+            xfer_count = 512 // (packet_size // 2)
             with open(file, 'rb') as f:
                 for i in range(xfer_count):
-                    data = f.read(_packet_size//2)
+                    data = f.read(packet_size // 2)
                     if i != xfer_count-1:
-                        self.com.send_packet(self._bytes_to_list(data), StatusCodes.PacketType.Data.value)
+                        self.com.send_packet(self.bytes_to_list(data), StatusCodes.PacketType.Data.value)
                     else:
-                        self.com.send_packet(self._bytes_to_list(data), StatusCodes.PacketType.EndData.value)
+                        self.com.send_packet(self.bytes_to_list(data), StatusCodes.PacketType.EndData.value)
 
         except Errors.Error as err:
             sys.stderr.write(err.msg + "\n")
@@ -335,7 +354,7 @@ class Models(Finger):
         packet = [0x01]
 
         try:
-            self._check_ok(self.com.transfer(packet, 12)[0])
+            self.check_ok(self.com.transfer(packet, 12)[0])
             return 0
 
         except Errors.Error as err:
@@ -350,7 +369,7 @@ class Models(Finger):
         """
         packet = [0x02, buffer_id]
         try:
-            self._check_ok(self.com.transfer(packet, 12)[0])
+            self.check_ok(self.com.transfer(packet, 12)[0])
             return 0
 
         except Errors.Error as err:
@@ -365,7 +384,7 @@ class Models(Finger):
         """
         packet = [0x05]
         try:
-            self._check_ok(self.com.transfer(packet, 12)[0])
+            self.check_ok(self.com.transfer(packet, 12)[0])
             return 0
         except Errors.Error as err:
             sys.stderr.write(err.msg + "\n")
@@ -380,7 +399,7 @@ class Models(Finger):
         packet = [0x03]
         try:
             ret = self.com.transfer(packet, 14)
-            self._check_ok(ret[0])
+            self.check_ok(ret[0])
 
             sys.stderr.write("Score: %d\n" % (ret[1] << 8 | ret[2]))
             return 0
@@ -397,11 +416,11 @@ class Models(Finger):
         :param num_pages: Number of elements to search
         :return: 0 on success, 1 on fail
         """
-        packet = [0x04, buffer_id] + self._16_to_list(start_page) + self._16_to_list(num_pages)
+        packet = [0x04, buffer_id] + self.u16_to_list(start_page) + self.u16_to_list(num_pages)
 
         try:
             ret = self.com.transfer(packet, 16)
-            self._check_ok(ret[0])
+            self.check_ok(ret[0])
 
             sys.stderr.write("Page: %d\n" % (ret[1] << 8 | ret[2]))
             sys.stderr.write("Score: %d\n" % (ret[3] << 8 | ret[4]))
@@ -423,10 +442,10 @@ class System(Finger):
         """
 
         # Form packet to send
-        packet = [0x13] + self._u32_to_list(self._password)
+        packet = [0x13] + self.u32_to_list(self._password)
 
         try:
-            self._check_ok(self.com.transfer(packet, 12)[0])
+            self.check_ok(self.com.transfer(packet, 12)[0])
             return 0
 
         except Errors.Error as err:
@@ -443,10 +462,10 @@ class System(Finger):
         """
 
         # Form packet to send
-        packet = [0x12] + self._u32_to_list(password)
+        packet = [0x12] + self.u32_to_list(password)
 
         try:
-            self._check_ok(self.com.transfer(packet, 12)[0])
+            self.check_ok(self.com.transfer(packet, 12)[0])
             return 0
 
         except Errors.Error as err:
@@ -463,10 +482,10 @@ class System(Finger):
         """
 
          # Form packet to send
-        packet = [0x15] + self._u32_to_list(address)
+        packet = [0x15] + self.u32_to_list(address)
 
         try:
-            self._check_ok(self.com.transfer(packet, 12)[0])
+            self.check_ok(self.com.transfer(packet, 12)[0])
             self.com.device_address = address
             return 0
 
@@ -484,26 +503,26 @@ class System(Finger):
 
         try:
             ret = self.com.transfer(packet, 28)
-            self._check_ok(ret[0])
+            self.check_ok(ret[0])
 
-            global _system_id
-            _system_id = ret[3] << 8 | ret[4]
+            global system_id
+            system_id = ret[3] << 8 | ret[4]
 
-            global _database_size
-            _database_size = ret[5] << 8 | ret[6]
+            global database_size
+            database_size = ret[5] << 8 | ret[6]
 
-            global _secure_level
-            _secure_level = ret[7] << 8 | ret[8]
+            global secure_level
+            secure_level = ret[7] << 8 | ret[8]
 
-            global _packet_size
-            _packet_size = 32 * pow(2, (ret[13] << 8 | ret[14] + 1))
+            global packet_size
+            packet_size = 32 * pow(2, (ret[13] << 8 | ret[14] + 1))
 
             sys.stderr.write("Status register 0x%02x\n" % (ret[1] << 8 | ret[2]))
-            sys.stderr.write("System ID: 0x%04x\n" % _system_id)
-            sys.stderr.write("Fingerprint database size: %d\n" % _database_size)
-            sys.stderr.write("Security level: %d\n" % _secure_level)
+            sys.stderr.write("System ID: 0x%04x\n" % system_id)
+            sys.stderr.write("Fingerprint database size: %d\n" % database_size)
+            sys.stderr.write("Security level: %d\n" % secure_level)
             sys.stderr.write("Device address: 0x%08x\n" % (ret[9] << 24 | ret[10] << 16 | ret[11] << 8 | ret[12]))
-            sys.stderr.write("Packet size: %d bytes\n" % _packet_size)
+            sys.stderr.write("Packet size: %d bytes\n" % packet_size)
             sys.stderr.write("Baudrate: %d bps\n" % (ret[15] << 8 | ret[16] * 9600))
             return 0
 
@@ -520,7 +539,7 @@ class System(Finger):
             # Form packet to send
             packet = [0x0e, 4, baudrate//9600]
 
-            self._check_ok(self.com.transfer(packet, 12)[0])
+            self.check_ok(self.com.transfer(packet, 12)[0])
             # self.com.ser.setBaudrate = baudrate  Fixme: Do I need this?
             return 0
 
@@ -537,7 +556,7 @@ class System(Finger):
         packet = [0x0e, 5, level]
 
         try:
-            self._check_ok(self.com.transfer(packet, 12)[0])
+            self.check_ok(self.com.transfer(packet, 12)[0])
             return 0
 
         except Errors.Error as err:
@@ -563,7 +582,7 @@ class System(Finger):
         packet = [0x0e, 5, code]
 
         try:
-            self._check_ok(self.com.transfer(packet, 12)[0])
+            self.check_ok(self.com.transfer(packet, 12)[0])
             return 0
 
         except Errors.Error as err:

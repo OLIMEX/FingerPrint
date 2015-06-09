@@ -149,10 +149,6 @@ def main():
     # Register argument group
     image_group = parser.add_argument_group("Fingerprint image",
                                             "Actions with ImageBuffer").add_mutually_exclusive_group()
-    image_group.add_argument("--image-download",
-                             action="store",
-                             metavar="FILE",
-                             help="Download fingerprint image from host PC to the sensor")
     image_group.add_argument("--image-upload",
                              action="store",
                              metavar="FILE",
@@ -179,9 +175,9 @@ def main():
                           address=args.address)
 
     image = Finger.Image(args.port,
-                          baud=args.baudrate,
-                          password=args.password,
-                          address=args.address)
+                         baud=args.baudrate,
+                         password=args.password,
+                         address=args.address)
 
     # Check is there is someone
     logging.debug("Connecting with sensor")
@@ -251,9 +247,6 @@ def main():
 
     if args.model_chars is not None:
         model.generate_characteristics(args.model_chars)
-
-    if args.model_generate:
-        model.register_model()
 
     if args.model_match:
         model.match_model()
